@@ -1,5 +1,7 @@
 # UK Merchant Categoriser
 
+[![tests](https://github.com/YOUR_GITHUB_USERNAME/uk-merchant-categoriser/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/uk-merchant-categoriser/actions/workflows/ci.yml)
+
 A privacy-first, local machine-learning service that categorises messy UK bank
 transaction descriptions without calling any closed-source LLM API.
 
@@ -7,6 +9,15 @@ transaction descriptions without calling any closed-source LLM API.
 > claim production-grade performance on real consumer banking data, and every
 > reported score is a synthetic/sandbox evaluation result. Real data would need
 > informed user consent and privacy controls.
+
+## Live Demo
+
+A public demo is deployed at:
+
+> https://uk-merchant-categoriser.onrender.com — replace with the deployed URL
+
+It serves the browser demo at `/` and the API docs at `/docs`. The demo runs in
+fixture mode on synthetic data with ephemeral SQLite feedback storage.
 
 ## The problem
 
@@ -92,6 +103,8 @@ uk-merchant-categoriser/
 ├── pyproject.toml
 ├── docker-compose.yml
 ├── Dockerfile
+├── render.yaml              # Render Blueprint deployment
+├── .github/workflows/       # CI
 ├── .env.example
 ├── Makefile
 ├── alembic/                  # SQLAlchemy migrations
@@ -149,7 +162,8 @@ make train               # -> artifacts/current/
 make api
 ```
 
-Then open http://localhost:8000/docs.
+Then open http://localhost:8000/ for the browser demo or http://localhost:8000/docs
+for the API docs.
 
 Until a model is trained the API serves a clearly-labelled deterministic
 `bootstrap` keyword model so `/predict` still responds.
@@ -300,7 +314,22 @@ redaction.
 docker compose up --build
 ```
 
-The API image ships the PII stack and pre-downloaded MiniLM encoder. On first
-start, if no artifact exists, the entrypoint trains the default MiniLM model on
-the bundled synthetic/sandbox data, runs Alembic migrations against PostgreSQL,
-and then starts uvicorn on port 8000.
+The image installs the PII stack, downloads the spaCy model and MiniLM encoder,
+and trains the MiniLM artifact **at build time**. The web server only loads the
+artifact on startup; it never trains. Uvicorn binds `0.0.0.0` on `PORT`
+(default 8000).
+
+## Deploy to Render
+
+`render.yaml` defines a Docker-based web service with `/health` as the health
+check path, fixture mode enabled, and ephemeral SQLite feedback storage.
+
+1. Push this repository to GitHub.
+2. In Render, create a new **Blueprint** and select the repository.
+3. Render builds the image (including the trained MiniLM artifact) and deploys.
+4. Replace the demo URL and badge `YOUR_GITHUB_USERNAME` placeholders in this
+   README with the real values.
+
+The public demo defaults to fixture mode and ephemeral SQLite for feedback.
+Set `UKMC_DATABASE_URL` to a managed PostgreSQL URL in `render.yaml` before
+accepting real feedback. See `docs/privacy.md` before any real-data use.
