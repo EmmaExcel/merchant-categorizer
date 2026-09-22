@@ -1,3 +1,7 @@
+"""FastAPI app: demo page at ``/``, prediction endpoints, and OpenAPI docs.
+
+Raw descriptions are redacted before preprocessing, persistence, or logging.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +11,7 @@ from typing import List
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
+from api.demo import demo_page
 from api.dependencies import (
     clear_model_cache,
     get_cleaner_dep,
@@ -49,6 +54,11 @@ app = FastAPI(
 def _startup() -> None:
     init_db()
     logger.info("UK Merchant Categoriser started (fixture_mode=%s)", settings.FIXTURE_MODE)
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    return demo_page()
 
 
 def _predict_one(payload: PredictRequest, db: Session) -> PredictResponse:

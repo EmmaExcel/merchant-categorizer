@@ -59,7 +59,7 @@ ukmc-api = "api.main:run"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["*.json", "*.csv", "*.md"]
+"*" = ["*.json", "*.csv", "*.md", "*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

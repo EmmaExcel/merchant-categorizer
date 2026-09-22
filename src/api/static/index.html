@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UK Merchant Categoriser</title>
+  <style>
+    :root {
+      --ink: #1f2933;
+      --muted: #52606d;
+      --line: #d9e2ec;
+      --accent: #14532d;
+      --accent-soft: #f0fdf4;
+      --warn-bg: #fffbeb;
+      --warn-line: #f59e0b;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: #f5f7fa;
+      line-height: 1.5;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; }
+    .subtitle { color: var(--muted); margin: 0 0 20px; }
+    .warning {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-line);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 0 0 20px;
+      font-size: 0.95rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin: 12px 0 4px; }
+    input, select {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .row > div { flex: 1 1 160px; }
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      margin: 12px 8px 0 0;
+    }
+    button:hover { border-color: var(--accent); }
+    #submit {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      margin-top: 16px;
+    }
+    #submit:hover { filter: brightness(1.08); }
+    #result { display: none; }
+    #result.visible { display: block; }
+    .category { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+    .review {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .review.needed { background: var(--warn-bg); color: #92400e; border-color: var(--warn-line); }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; }
+    .chips { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+    .chips li { background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; }
+    #error { display: none; color: #991b1b; margin-top: 12px; }
+    footer { color: var(--muted); font-size: 0.85rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>UK Merchant Categoriser</h1>
+    <p class="subtitle">Local ML categorisation of messy UK bank transaction descriptions.</p>
+
+    <p class="warning">
+      Use sample data only. Do not enter real financial or personal information.
+    </p>
+
+    <div class="card">
+      <label for="description">Transaction description</label>
+      <input id="description" type="text" autocomplete="off" placeholder="CARD PAYMENT TESCO STORES 3402 LONDON">
+
+      <div class="row">
+        <div>
+          <label for="amount">Amount (GBP)</label>
+          <input id="amount" type="number" step="0.01" value="42.65">
+        </div>
+        <div>
+          <label for="direction">Direction</label>
+          <select id="direction">
+            <option value="debit" selected>debit</option>
+            <option value="credit">credit</option>
+          </select>
+        </div>
+        <div>
+          <label for="transaction_type">Rail / type</label>
+          <select id="transaction_type">
+            <option value="">unknown</option>
+            <option value="CARD" selected>CARD</option>
+            <option value="POS">POS</option>
+            <option value="BACS">BACS</option>
+            <option value="FPS">FPS</option>
+            <option value="CHAPS">CHAPS</option>
+            <option value="DD">DD</option>
+            <option value="SO">SO</option>
+            <option value="ATM">ATM</option>
+            <option value="TFR">TFR</option>
+            <option value="PAYPAL">PAYPAL</option>
+            <option value="STRIPE">STRIPE</option>
+            <option value="SQUARE">SQUARE</option>
+            <option value="APPLE_PAY">APPLE_PAY</option>
+            <option value="GOOGLE_PAY">GOOGLE_PAY</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="button" data-example="tesco">Tesco</button>
+      <button type="button" data-example="tfl">TfL</button>
+      <button type="button" data-example="netflix">Netflix</button>
+      <button type="button" data-example="salary">Salary</button>
+      <button type="button" data-example="redaction">Redaction example</button>
+
+      <button id="submit" type="button">Categorise</button>
+    </div>
+
+    <div class="card" id="result">
+      <div>
+        <span class="category" id="r_category"></span>
+        <span class="review" id="r_review"></span>
+      </div>
+      <p class="meta">Confidence: <strong id="r_confidence"></strong></p>
+      <p class="meta">Cleaned: <span id="r_cleaned"></span></p>
+      <p class="meta">Redacted: <span id="r_redacted"></span></p>
+      <ul class="chips" id="r_pii"></ul>
+      <h3>Top-3 predictions</h3>
+      <table>
+        <thead><tr><th>Category</th><th>Confidence</th></tr></thead>
+        <tbody id="r_top3"></tbody>
+      </table>
+      <p class="meta">Model version: <span id="r_version"></span></p>
+    </div>
+
+    <p id="error"></p>
+
+    <footer>
+      Proof of concept trained on synthetic/sandbox data. Results are synthetic/sandbox
+      evaluation results, not real-world performance.
+    </footer>
+  </main>
+
+  <script>
+    const examples = {
+      tesco:      { description: "CARD PAYMENT TESCO STORES 3402 LONDON", amount: 42.65, direction: "debit", transaction_type: "CARD" },
+      tfl:        { description: "TFL TRAVEL CHARGE", amount: 2.80, direction: "debit", transaction_type: "CARD" },
+      netflix:    { description: "PAYPAL *NETFLIX.COM", amount: 15.99, direction: "debit", transaction_type: "PAYPAL" },
+      salary:     { description: "BACS ACME LTD PAYROLL", amount: 2500.00, direction: "credit", transaction_type: "BACS" },
+      redaction:  { description: "BACS JOHN SMITH 20-45-67 12345678 RENT SEPTEMBER", amount: 1200.00, direction: "debit", transaction_type: "BACS" }
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function setExample(key) {
+      const e = examples[key];
+      $("description").value = e.description;
+      $("amount").value = e.amount;
+      $("direction").value = e.direction;
+      $("transaction_type").value = e.transaction_type;
+    }
+
+    document.querySelectorAll("button[data-example]").forEach((btn) => {
+      btn.addEventListener("click", () => setExample(btn.dataset.example));
+    });
+
+    $("submit").addEventListener("click", async () => {
+      const payload = {
+        description: $("description").value.trim(),
+        amount: parseFloat($("amount").value) || null,
+        direction: $("direction").value,
+        transaction_type: $("transaction_type").value || null
+      };
+      $("error").style.display = "none";
+      $("result").classList.remove("visible");
+
+      try {
+        const response = await fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new Error("HTTP " + response.status + " " + detail);
+        }
+        const data = await response.json();
+        render(data);
+      } catch (err) {
+        $("error").textContent = "Prediction failed: " + err.message;
+        $("error").style.display = "block";
+      }
+    });
+
+    function render(data) {
+      $("r_category").textContent = data.predicted_category;
+      $("r_confidence").textContent = (data.confidence * 100).toFixed(1) + "%";
+      $("r_review").textContent = data.requires_review ? "needs review" : "no review";
+      $("r_review").classList.toggle("needed", data.requires_review);
+      $("r_cleaned").textContent = data.cleaned_description || "—";
+      $("r_redacted").textContent = data.redacted_description || "—";
+      $("r_version").textContent = data.model_version;
+
+      const chips = $("r_pii");
+      chips.innerHTML = "";
+      (data.pii_entities_redacted || []).forEach((t) => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        chips.appendChild(li);
+      });
+
+      const top3 = $("r_top3");
+      top3.innerHTML = "";
+      (data.top_3_predictions || []).forEach((p) => {
+        const tr = document.createElement("tr");
+        const tdCategory = document.createElement("td");
+        tdCategory.textContent = p.category;
+        const tdConf = document.createElement("td");
+        tdConf.textContent = (p.confidence * 100).toFixed(1) + "%";
+        tr.appendChild(tdCategory);
+        tr.appendChild(tdConf);
+        top3.appendChild(tr);
+      });
+
+      $("result").classList.add("visible");
+    }
+  </script>
+</body>
+</html>
