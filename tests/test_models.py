@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 
 import pytest
 
@@ -86,8 +87,9 @@ def test_mcc_embedding_gated_when_missing():
 
 
 @pytest.mark.skipif(
-    importlib.util.find_spec("sentence_transformers") is None,
-    reason="sentence-transformers not installed",
+    importlib.util.find_spec("sentence_transformers") is None
+    or os.environ.get("UKMC_CI") == "true",
+    reason="requires downloading the MiniLM model; skipped when unavailable or in CI",
 )
 def test_minilm_forward_pass_shape():
     from models.base import ModelConfig
