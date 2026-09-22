@@ -25,7 +25,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 # Bake a trained MiniLM artifact into the image so web startup only loads it.
 # Training happens here, at build time, never when the server starts.
 # Lower UKMC_TRAIN_EPOCHS on memory-constrained builders (e.g. free tiers).
-ARG UKMC_TRAIN_EPOCHS=30
+ARG UKMC_TRAIN_EPOCHS=5
 RUN python -m src.training.train --model-type minilm --epochs "${UKMC_TRAIN_EPOCHS}" --output-dir /app/artifacts/current
 
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
