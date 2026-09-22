@@ -10,14 +10,32 @@ transaction descriptions without calling any closed-source LLM API.
 > reported score is a synthetic/sandbox evaluation result. Real data would need
 > informed user consent and privacy controls.
 
-## Live Demo
+## Run it locally
 
-A public demo is deployed at:
+The project is intentionally presented as a local-first portfolio demo. It has
+no public deployment: the full NLP model exceeds the memory available on most
+free hosting tiers.
 
-> https://uk-merchant-categoriser.onrender.com — replace with the deployed URL
+For the quickest route to a working demo (and screenshots), install
+[Docker Desktop](https://www.docker.com/products/docker-desktop/), then run:
 
-It serves the browser demo at `/` and the API docs at `/docs`. The demo runs in
-fixture mode on synthetic data with ephemeral SQLite feedback storage.
+```bash
+git clone https://github.com/EmmaExcel/merchant-categorizer.git && cd merchant-categorizer
+docker compose up --build
+```
+
+The first build downloads the NLP dependencies and trains the demo model, so it
+can take a few minutes. Once the log says Uvicorn is running, open:
+
+| What to capture | Address |
+|---|---|
+| Browser demo | http://localhost:8000/ |
+| Interactive API docs | http://localhost:8000/docs |
+| Health response | http://localhost:8000/health |
+
+Press `Ctrl+C` in the terminal to stop the service. The default setup uses only
+synthetic fixture data and local SQLite storage; no account, API key, or `.env`
+file is needed.
 
 ## The problem
 
@@ -126,47 +144,12 @@ uk-merchant-categoriser/
 └── notebooks/                # 01_exploration.ipynb, 02_model_evaluation.ipynb
 ```
 
-## Setup
+## Local development without Docker
 
-Requires Python 3.10+.
-
-```bash
-git clone https://github.com/EmmaExcel/merchant-categorizer.git && cd uk-merchant-categoriser
-make install            # creates .venv, installs the package in editable mode
-```
-
-To also install the optional presidio/spaCy stack used by the vendored
-UK-PII-Detector-Redactor:
-
-```bash
-make install-pii        # installs presidio-analyzer, presidio-anonymizer, spacy
-                        # and downloads en_core_web_sm
-```
-
-Without the optional PII stack the service still works: the adapter falls back
-to a deterministic UK banking regex redactor.
-
-## Run in fixture mode (no credentials)
-
-Fixture mode is the default and needs no API keys, no database server, and no
-`.env` file:
-
-```bash
-# 1. (Re)generate the synthetic dataset and TrueLayer sandbox fixture
-make data
-
-# 2. Train the default MiniLM model on synthetic/sandbox data
-make train               # -> artifacts/current/
-
-# 3. Launch the API
-make api
-```
-
-Then open http://localhost:8000/ for the browser demo or http://localhost:8000/docs
-for the API docs.
-
-Until a model is trained the API serves a clearly-labelled deterministic
-`bootstrap` keyword model so `/predict` still responds.
+Requires Python 3.10+. The two-command Docker route above is recommended for a
+first run. For development, create the environment with `make install`, then
+use `make data`, `make train`, and `make api`. Until training completes, the
+API still responds using a clearly-labelled deterministic bootstrap classifier.
 
 ### Example curl request
 
@@ -308,27 +291,10 @@ label validation, model forward passes, Top-3 accuracy, API responses, and a
 proof that raw descriptions are never written to logs or persisted after
 redaction.
 
-## Docker
+## Deployment note
 
-```bash
-docker compose up --build
-```
-
-The image installs the PII stack, downloads the spaCy model and MiniLM encoder,
-and trains the MiniLM artifact **at build time**. The web server only loads the
-artifact on startup; it never trains. Uvicorn binds `0.0.0.0` on `PORT`
-(default 8000).
-
-## Deploy to Render
-
-`render.yaml` defines a Docker-based web service with `/health` as the health
-check path, fixture mode enabled, and ephemeral SQLite feedback storage.
-
-1. Push this repository to GitHub.
-2. In Render, create a new **Blueprint** and select the repository.
-3. Render builds the image (including the trained MiniLM artifact) and deploys.
-4. Replace the Live Demo URL placeholder above with the deployed URL.
-
-The public demo defaults to fixture mode and ephemeral SQLite for feedback.
-Set `UKMC_DATABASE_URL` to a managed PostgreSQL URL in `render.yaml` before
-accepting real feedback. See `docs/privacy.md` before any real-data use.
+The included `render.yaml` and Docker configuration are deployment-ready, but
+the MiniLM/Torch runtime needs more than the smallest free-tier memory plans.
+For now, the supported showcase path is the local Docker demo above. Before
+accepting real feedback in any deployment, replace SQLite with managed
+PostgreSQL and review [`docs/privacy.md`](docs/privacy.md).
