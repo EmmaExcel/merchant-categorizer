@@ -1,6 +1,6 @@
 # UK Merchant Categoriser
 
-[![tests](https://github.com/YOUR_GITHUB_USERNAME/uk-merchant-categoriser/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/uk-merchant-categoriser/actions/workflows/ci.yml)
+[![tests](https://github.com/EmmaExcel/merchant-categorizer/actions/workflows/ci.yml/badge.svg)](https://github.com/EmmaExcel/merchant-categorizer/actions/workflows/ci.yml)
 
 A privacy-first, local machine-learning service that categorises messy UK bank
 transaction descriptions without calling any closed-source LLM API.
@@ -131,7 +131,7 @@ uk-merchant-categoriser/
 Requires Python 3.10+.
 
 ```bash
-git clone <this-repo> && cd uk-merchant-categoriser
+git clone https://github.com/EmmaExcel/merchant-categorizer.git && cd uk-merchant-categoriser
 make install            # creates .venv, installs the package in editable mode
 ```
 
@@ -327,8 +327,7 @@ check path, fixture mode enabled, and ephemeral SQLite feedback storage.
 1. Push this repository to GitHub.
 2. In Render, create a new **Blueprint** and select the repository.
 3. Render builds the image (including the trained MiniLM artifact) and deploys.
-4. Replace the demo URL and badge `YOUR_GITHUB_USERNAME` placeholders in this
-   README with the real values.
+4. Replace the Live Demo URL placeholder above with the deployed URL.
 
 The public demo defaults to fixture mode and ephemeral SQLite for feedback.
 Set `UKMC_DATABASE_URL` to a managed PostgreSQL URL in `render.yaml` before
