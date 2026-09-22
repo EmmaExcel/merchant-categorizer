@@ -34,6 +34,7 @@ from torch.utils.data import DataLoader, Dataset
 from config import settings
 from models import build_model, pick_device, set_seed
 from models.base import ModelConfig, cosine_warmup_schedule, count_parameters
+from models.bilstm_attention import BiLSTMAttentionClassifier
 from preprocessing.features import LABEL2ID, LABELS, encode_metadata_tensor
 from training.config import TrainingConfig
 from training.data import PreparedDataset, meta_features_from_row, prepare_dataset
@@ -184,19 +185,22 @@ def train(config: TrainingConfig) -> Dict[str, Any]:
         lstm_layers=config.lstm_layers,
         seed=config.seed,
     )
-    model = build_model(config.model_type, model_config).to(device)
-
-    # BiLSTM tokenizer is trained only on the training corpus.
+    # BiLSTM tokenizer is trained only on the training corpus, before the model
+    # is built so the embedding layer matches the real vocabulary size.
     if config.model_type == "bilstm":
         train_cleaned = frame.iloc[prepared.train_indices]["cleaned_description"].tolist()
         logger.info("Training BiLSTM WordPiece tokenizer on %d train rows...", len(train_cleaned))
-        tokenizer = model.train_tokenizer(
+        tokenizer = BiLSTMAttentionClassifier.train_tokenizer(
             train_cleaned,
             vocab_size=config.vocab_size,
             max_length=config.max_length,
         )
-        model.tokenizer = tokenizer
         model_config.vocab_size = tokenizer.get_vocab_size()
+
+    model = build_model(config.model_type, model_config).to(device)
+
+    if config.model_type == "bilstm":
+        model.tokenizer = tokenizer
 
     # MiniLM text embeddings are computed once and cached.
     embeddings: Optional[np.ndarray] = None
