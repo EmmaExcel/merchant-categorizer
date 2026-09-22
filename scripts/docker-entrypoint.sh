@@ -6,8 +6,7 @@ if command -v alembic >/dev/null 2>&1 && [ "${UKMC_SKIP_MIGRATIONS:-false}" != "
 fi
 
 if [ ! -f "${UKMC_MODEL_DIR:-artifacts/current}/model.pt" ]; then
-  echo "No model artifact found at ${UKMC_MODEL_DIR:-artifacts/current}; training MiniLM on synthetic/sandbox data..."
-  python -m src.training.train --model-type minilm --epochs 20 --output-dir "${UKMC_MODEL_DIR:-artifacts/current}"
+  echo "Warning: no model artifact at ${UKMC_MODEL_DIR:-artifacts/current}; serving bootstrap keyword model" >&2
 fi
 
-exec uvicorn api.main:app --host 0.0.0.0 --port 8000
+exec uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}"

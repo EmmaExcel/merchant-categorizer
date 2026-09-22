@@ -22,6 +22,10 @@ RUN pip install --no-cache-dir -e ".[pii]"
 RUN python -m spacy download en_core_web_sm
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
+# Bake a trained MiniLM artifact into the image so web startup only loads it.
+# Training happens here, at build time, never when the server starts.
+RUN python -m src.training.train --model-type minilm --epochs 30 --output-dir /app/artifacts/current
+
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

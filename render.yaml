@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: uk-merchant-categoriser
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: UKMC_FIXTURE_MODE
+        value: "true"
+      - key: UKMC_DATABASE_URL
+        # Ephemeral SQLite for public-demo feedback. Configure a managed
+        # PostgreSQL URL here before accepting real user feedback.
+        value: sqlite:////tmp/ukmc_demo.db
+      - key: UKMC_MODEL_DIR
+        value: /app/artifacts/current
+      - key: UKMC_DEVICE
+        value: auto
+      - key: UKMC_PII_USE_PRESIDIO
+        value: "true"

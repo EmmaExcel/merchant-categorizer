@@ -6,6 +6,7 @@ Raw descriptions are redacted before preprocessing, persistence, or logging.
 from __future__ import annotations
 
 import logging
+import os
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -53,7 +54,14 @@ app = FastAPI(
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
-    logger.info("UK Merchant Categoriser started (fixture_mode=%s)", settings.FIXTURE_MODE)
+    # Warm the model at startup so the first request does not pay the load
+    # cost and deployments fail fast if the artifact cannot be read.
+    model = get_model()
+    logger.info(
+        "UK Merchant Categoriser started (fixture_mode=%s, serving=%s)",
+        settings.FIXTURE_MODE,
+        getattr(model, "name", type(model).__name__),
+    )
 
 
 @app.get("/", include_in_schema=False)
@@ -227,7 +235,8 @@ def reload_model() -> dict:
 def run() -> None:
     import uvicorn
 
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=False)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("api.main:app", host="0.0.0.0", port=port, reload=False)
 
 
 if __name__ == "__main__":
