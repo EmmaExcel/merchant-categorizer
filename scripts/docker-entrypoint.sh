@@ -9,4 +9,5 @@ if [ ! -f "${UKMC_MODEL_DIR:-artifacts/current}/model.pt" ]; then
   echo "Warning: no model artifact at ${UKMC_MODEL_DIR:-artifacts/current}; serving bootstrap keyword model" >&2
 fi
 
+echo "Starting uvicorn on 0.0.0.0:${PORT:-8000}"
 exec uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}"
