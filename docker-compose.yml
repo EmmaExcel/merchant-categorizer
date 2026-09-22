@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ukmc
+      POSTGRES_PASSWORD: ukmc
+      POSTGRES_DB: ukmc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ukmc -d ukmc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      # PostgreSQL in production, SQLite for local tests.
+      UKMC_DATABASE_URL: postgresql+psycopg://ukmc:ukmc@db:5432/ukmc
+      UKMC_ENV: prod
+      UKMC_FIXTURE_MODE: "true"
+      UKMC_MODEL_TYPE: minilm
+      UKMC_MODEL_DIR: /app/artifacts/current
+      UKMC_DEVICE: auto
+      UKMC_PII_USE_PRESIDIO: "true"
+      UKMC_LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - artifacts:/app/artifacts
+
+volumes:
+  pgdata:
+  artifacts:

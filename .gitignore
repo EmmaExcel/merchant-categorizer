@@ -1,0 +1,35 @@
+# Environment
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data and privacy
+# Never commit real bank transaction data, credentials or tokens.
+data/processed/*.csv
+data/processed/*.json
+data/processed/*.npz
+data/*.db
+data/*.sqlite3
+*.db
+*.sqlite3
+
+# Model artifacts (large binaries; regenerate with `make train`)
+artifacts/*/
+!artifacts/.gitkeep
+!artifacts/runs/
+
+# Notebook outputs
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
