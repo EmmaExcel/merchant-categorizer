@@ -1,18 +1,6 @@
-"""Model B (educational baseline): BiLSTM + attention pooling + metadata.
-
-A from-scratch PyTorch baseline:
-
-* subword (WordPiece) tokenizer trained only on the synthetic training corpus
-* learned embedding layer
-* bidirectional LSTM
-* additive attention pooling implemented directly in PyTorch
-* concatenated categorical metadata embeddings
-* linear classification head
-"""
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -21,8 +9,6 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from models.base import BaseCategoriser, MetaEmbedder, ModelConfig
-
-logger = logging.getLogger(__name__)
 
 SPECIAL_TOKENS = ["[PAD]", "[UNK]", "[CLS]", "[SEP]"]
 
@@ -46,7 +32,7 @@ class BiLSTMAttentionClassifier(BaseCategoriser):
             bidirectional=True,
             dropout=config.dropout if config.lstm_layers > 1 else 0.0,
         )
-        # Additive (Bahdanau-style) attention over the bidirectional outputs.
+
         self.attention = nn.Linear(2 * config.lstm_hidden, 1)
 
         self.meta_embedder = MetaEmbedder(config)
@@ -54,9 +40,9 @@ class BiLSTMAttentionClassifier(BaseCategoriser):
             2 * config.lstm_hidden + self.meta_embedder.output_dim, config.n_classes
         )
 
-    # ------------------------------------------------------------------
-    # Tokenizer
-    # ------------------------------------------------------------------
+
+
+
     @staticmethod
     def train_tokenizer(
         corpus: Iterable[str],
@@ -64,7 +50,6 @@ class BiLSTMAttentionClassifier(BaseCategoriser):
         max_length: int = 48,
         save_path: Optional[Path] = None,
     ):
-        """Train a WordPiece tokenizer only on the given corpus."""
         from tokenizers import Tokenizer, models, pre_tokenizers, trainers
 
         tokenizer = Tokenizer(models.WordPiece(unk_token="[UNK]"))
@@ -95,9 +80,9 @@ class BiLSTMAttentionClassifier(BaseCategoriser):
 
         self.tokenizer = Tokenizer.from_file(str(path))
 
-    # ------------------------------------------------------------------
-    # Encoding / forward
-    # ------------------------------------------------------------------
+
+
+
     def encode_texts(self, texts: List[str]) -> Dict[str, torch.Tensor]:
         tokenizer = self._ensure_tokenizer()
         encodings = tokenizer.encode_batch([t or "[UNK]" for t in texts])
@@ -111,7 +96,7 @@ class BiLSTMAttentionClassifier(BaseCategoriser):
         ids = text_inputs["input_ids"]
         mask = text_inputs["attention_mask"]
 
-        embedded = self.embedding(ids)  # (B, T, E)
+        embedded = self.embedding(ids)
         lengths = mask.sum(dim=1).clamp(min=1).cpu().to(torch.long)
         packed = pack_padded_sequence(
             embedded, lengths, batch_first=True, enforce_sorted=False
@@ -119,21 +104,21 @@ class BiLSTMAttentionClassifier(BaseCategoriser):
         packed_outputs, _ = self.lstm(packed)
         outputs, _ = pad_packed_sequence(
             packed_outputs, batch_first=True, total_length=ids.size(1)
-        )  # (B, T, 2H)
+        )
 
-        # Attention pooling implemented directly in PyTorch.
-        scores = self.attention(outputs).squeeze(-1)  # (B, T)
+
+        scores = self.attention(outputs).squeeze(-1)
         scores = scores.masked_fill(mask == 0, -1e9)
-        weights = torch.softmax(scores, dim=-1).unsqueeze(-1)  # (B, T, 1)
-        context = (outputs * weights).sum(dim=1)  # (B, 2H)
+        weights = torch.softmax(scores, dim=-1).unsqueeze(-1)
+        context = (outputs * weights).sum(dim=1)
 
         meta_embedding = self.meta_embedder(meta)
         combined = torch.cat([context, meta_embedding], dim=-1)
         return self.head(combined)
 
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
+
+
+
     def _save_text_encoder(self, directory: Path) -> None:
         self._ensure_tokenizer().save(str(directory / "tokenizer.json"))
 

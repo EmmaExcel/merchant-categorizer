@@ -1,11 +1,8 @@
-"""Privacy tests: raw descriptions must never be logged or persisted."""
-
 from __future__ import annotations
 
 import logging
 
 from sqlalchemy import select
-
 
 RAW_PII = "BACS JOHN SMITH 20-45-67 12345678 RENT SEPTEMBER"
 
@@ -70,7 +67,6 @@ def test_feedback_stores_only_redacted_text(api_client, db_session):
 
 
 def test_prepared_dataset_never_persists_raw(tmp_path, monkeypatch):
-    """The processed dataset CSV must not contain a raw_description column."""
     from training.config import TrainingConfig
     from training.data import prepare_dataset
 
@@ -82,8 +78,8 @@ def test_prepared_dataset_never_persists_raw(tmp_path, monkeypatch):
     lines = processed.read_text(encoding="utf-8").splitlines()
     header = lines[0].split(",")
     assert "raw_description" not in header
-    # Spot-check that no line contains the fictional raw PII used in the
-    # Rent/Mortgage templates.
+
+
     for line in lines[1:]:
         assert "JOHN SMITH" not in line
         assert "20-45-67" not in line

@@ -1,23 +1,10 @@
-"""FastAPI application for the UK merchant categoriser.
-
-Endpoints:
-* ``GET  /health``
-* ``GET  /model``
-* ``POST /predict``
-* ``POST /predict/batch``
-* ``POST /feedback``
-* ``DELETE /data/{subject_id}``
-
-Privacy: raw transaction descriptions are redacted before any preprocessing,
-persistence, logging, or evaluation export.
-"""
 
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
 from api.dependencies import (
@@ -31,6 +18,7 @@ from api.dependencies import (
 from api.schemas import (
     BatchPredictRequest,
     BatchPredictResponse,
+    CategoryPrediction,
     DeletionResponse,
     FeedbackRequest,
     FeedbackResponse,
@@ -38,7 +26,6 @@ from api.schemas import (
     ModelInfoResponse,
     PredictRequest,
     PredictResponse,
-    CategoryPrediction,
 )
 from config import settings
 from database import deletion as deletion_helpers
@@ -71,7 +58,6 @@ def _predict_one(payload: PredictRequest, db: Session) -> PredictResponse:
 
     redaction = redactor.redact(payload.description)
     cleaned = cleaner.clean_redacted(redaction.redacted_text)
-    tokens = cleaner.tokenize(cleaned)
 
     meta = build_metadata_features(
         amount=payload.amount,
@@ -94,7 +80,7 @@ def _predict_one(payload: PredictRequest, db: Session) -> PredictResponse:
         for idx, prob in zip(topk_indices, topk_probs)
     ]
 
-    # Persist only redacted/cleaned text. Never the raw description.
+
     transaction = RedactedTransaction(
         subject_id=payload.subject_id,
         transaction_id=payload.transaction_id,
@@ -121,7 +107,7 @@ def _predict_one(payload: PredictRequest, db: Session) -> PredictResponse:
         )
     )
 
-    # Log only cleaned text — never raw PII.
+
     logger.info(
         "Prediction: cleaned=%r category=%s confidence=%.3f review=%s",
         cleaned, top_category, confidence, requires_review,
@@ -161,7 +147,7 @@ def predict(payload: PredictRequest, db: Session = Depends(get_db)) -> PredictRe
         return _predict_one(payload, db)
     except HTTPException:
         raise
-    except Exception as exc:  # noqa: BLE001 - controlled, never log raw text
+    except Exception as exc:  # noqa: BLE001
         logger.error("Prediction failed: %s", type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -198,7 +184,6 @@ def predict_batch(
 def submit_feedback(
     payload: FeedbackRequest, db: Session = Depends(get_db)
 ) -> FeedbackResponse:
-    """Store a corrected label. Only redacted text is accepted and stored."""
     if payload.corrected_category not in LABELS:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -218,16 +203,13 @@ def submit_feedback(
 
 
 @app.delete("/data/{subject_id}", response_model=DeletionResponse, tags=["privacy"])
-def delete_subject(subject_id: str, db: Session = Depends(get_db)) -> DeletionResponse:
-    """Delete all stored data for a subject identifier (right to erasure)."""
-    db.close()  # deletion helper opens its own session
+def delete_subject(subject_id: str) -> DeletionResponse:
     counts = deletion_helpers.delete_subject_data(subject_id)
     return DeletionResponse(subject_id=subject_id, deleted=counts)
 
 
 @app.post("/admin/reload-model", tags=["admin"])
 def reload_model() -> dict:
-    """Clear the model cache so the next request reloads the artifact."""
     clear_model_cache()
     return {"status": "model cache cleared"}
 

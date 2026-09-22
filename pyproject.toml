@@ -27,7 +27,6 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.28.0",
     "pydantic>=2.6.0",
-    "pydantic-settings>=2.2.0",
     "sqlalchemy>=2.0.25",
     "alembic>=1.13.0",
     "psycopg[binary]>=3.1.0",
@@ -73,7 +72,11 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = ["src/privacy/vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]

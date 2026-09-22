@@ -1,12 +1,6 @@
-"""Alembic migration environment.
-
-Reads the database URL from ``UKMC_DATABASE_URL`` (falling back to the value in
-alembic.ini) and targets the SQLAlchemy metadata in ``database.models``.
-"""
 
 from __future__ import annotations
 
-import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -14,7 +8,6 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# Make the src layout importable.
 SRC = Path(__file__).resolve().parent.parent / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))

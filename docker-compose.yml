@@ -16,11 +16,8 @@ services:
   api:
     build: .
     environment:
-      # PostgreSQL in production, SQLite for local tests.
       UKMC_DATABASE_URL: postgresql+psycopg://ukmc:ukmc@db:5432/ukmc
-      UKMC_ENV: prod
       UKMC_FIXTURE_MODE: "true"
-      UKMC_MODEL_TYPE: minilm
       UKMC_MODEL_DIR: /app/artifacts/current
       UKMC_DEVICE: auto
       UKMC_PII_USE_PRESIDIO: "true"

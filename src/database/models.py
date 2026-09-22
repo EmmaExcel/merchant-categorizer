@@ -1,9 +1,4 @@
-"""SQLAlchemy models for the service database.
-
-Production uses PostgreSQL (``UKMC_DATABASE_URL``); local tests use SQLite.
-All persisted transaction text is redacted/cleaned — raw descriptions are
-never stored.
-"""
+"""SQLAlchemy models. Only redacted/cleaned transaction text is persisted."""
 
 from __future__ import annotations
 

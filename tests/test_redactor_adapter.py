@@ -1,12 +1,8 @@
-"""Tests for the PII redactor adapter."""
-
 from __future__ import annotations
 
 import logging
 
-import pytest
-
-from privacy.redactor_adapter import RedactorAdapter, RedactionEntity, RedactorBackend
+from privacy.redactor_adapter import RedactionEntity, RedactorAdapter
 
 
 class _ExplodingBackend:

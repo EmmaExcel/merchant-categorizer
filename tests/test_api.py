@@ -1,5 +1,3 @@
-"""API endpoint tests using a tiny trained BiLSTM artifact."""
-
 from __future__ import annotations
 
 from preprocessing.features import LABELS
@@ -69,13 +67,12 @@ def test_predict_redacts_pii_before_cleaning(api_client):
 
 
 def test_predict_requires_review_below_threshold(api_client):
-    # A description with no useful signal should produce low confidence.
     payload = {"description": "XYZ UNKNOWN DESCRIPTION", "amount": 5.0, "direction": "debit"}
     response = api_client.post("/predict", json=payload)
     assert response.status_code == 200
     data = response.json()
-    # The stub model is untrained, so confidence may be anything; just verify
-    # the flag is consistent with the threshold logic.
+    # The stub model is untrained, so confidence may be anything; only the
+    # flag/threshold consistency is asserted here.
     assert data["requires_review"] is (data["confidence"] < 0.75)
 
 

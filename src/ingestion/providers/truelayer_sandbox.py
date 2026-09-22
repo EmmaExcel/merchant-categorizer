@@ -1,18 +1,7 @@
-"""TrueLayer Data API Sandbox provider.
-
-The provider follows the TrueLayer Data API sandbox endpoints but **defaults to
-local fixture mode** so the whole application runs without any credentials.
-Set ``UKMC_FIXTURE_MODE=false`` and provide sandbox client credentials to call
-the live sandbox.
-
-TrueLayer sandbox endpoints used:
-* ``POST /connect/token`` — client-credentials grant
-* ``GET /data/v1/accounts``
-* ``GET /data/v1/accounts/{account_id}/transactions``
-"""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import date, datetime
@@ -65,9 +54,9 @@ class TrueLayerSandboxProvider(BankProvider):
         self._fixture: Optional[Dict[str, Any]] = None
         self._access_token: Optional[str] = None
 
-    # ------------------------------------------------------------------
-    # Fixture loading
-    # ------------------------------------------------------------------
+
+
+
     def _load_fixture(self) -> Dict[str, Any]:
         if self._fixture is None:
             if not self.fixture_path.exists():
@@ -89,9 +78,9 @@ class TrueLayerSandboxProvider(BankProvider):
             return True
         return False
 
-    # ------------------------------------------------------------------
-    # BankProvider interface
-    # ------------------------------------------------------------------
+
+
+
     def fetch_accounts(self) -> List[Account]:
         if self._use_fixture():
             fixture = self._load_fixture()
@@ -156,12 +145,11 @@ class TrueLayerSandboxProvider(BankProvider):
         ]
 
     def normalise_transaction(self, raw_transaction: Dict[str, Any]) -> NormalisedTransaction:
-        """Map a TrueLayer sandbox transaction to the provider-neutral model."""
         account_id = str(raw_transaction.get("account_id", ""))
         transaction_id = str(
             raw_transaction.get("transaction_id")
             or raw_transaction.get("id")
-            or f"fixture-{hash(json.dumps(raw_transaction, sort_keys=True, default=str))}"
+            or self._fixture_transaction_id(raw_transaction)
         )
         raw_description = str(
             raw_transaction.get("description")
@@ -194,9 +182,9 @@ class TrueLayerSandboxProvider(BankProvider):
             metadata={"source": "fixture" if self._use_fixture() else "truelayer-sandbox"},
         )
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
+
+
+
     def _get_access_token(self) -> str:
         if self._access_token:
             return self._access_token
@@ -213,6 +201,12 @@ class TrueLayerSandboxProvider(BankProvider):
         response.raise_for_status()
         self._access_token = str(response.json()["access_token"])
         return self._access_token
+
+    @staticmethod
+    def _fixture_transaction_id(raw_transaction: Dict[str, Any]) -> str:
+        payload = json.dumps(raw_transaction, sort_keys=True, default=str)
+        digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+        return f"fixture-{digest}"
 
     @staticmethod
     def _parse_amount(raw_amount: Any) -> float:
@@ -269,5 +263,4 @@ class TrueLayerSandboxProvider(BankProvider):
 
 
 def get_provider() -> TrueLayerSandboxProvider:
-    """Return the configured ingestion provider."""
     return TrueLayerSandboxProvider()

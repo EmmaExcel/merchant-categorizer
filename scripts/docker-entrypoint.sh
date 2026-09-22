@@ -1,14 +1,10 @@
 #!/bin/sh
 set -e
 
-# Run database migrations (PostgreSQL in compose; SQLite locally is created by
-# the app on startup when migrations are not used).
 if command -v alembic >/dev/null 2>&1 && [ "${UKMC_SKIP_MIGRATIONS:-false}" != "true" ]; then
   alembic upgrade head || echo "Alembic migration skipped (database not reachable yet)"
 fi
 
-# In fixture mode the app works with no credentials. If no trained artifact is
-# present, train the default MiniLM model on the synthetic/sandbox dataset first.
 if [ ! -f "${UKMC_MODEL_DIR:-artifacts/current}/model.pt" ]; then
   echo "No model artifact found at ${UKMC_MODEL_DIR:-artifacts/current}; training MiniLM on synthetic/sandbox data..."
   python -m src.training.train --model-type minilm --epochs 20 --output-dir "${UKMC_MODEL_DIR:-artifacts/current}"

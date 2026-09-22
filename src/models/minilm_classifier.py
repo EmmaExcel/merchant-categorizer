@@ -1,8 +1,5 @@
-"""Model A (default): sentence-transformers MiniLM + metadata + MLP head."""
-
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -11,15 +8,12 @@ from torch import nn
 
 from models.base import BaseCategoriser, MetaEmbedder, ModelConfig
 
-logger = logging.getLogger(__name__)
-
 
 class MiniLMClassifier(BaseCategoriser):
-    """Pooled MiniLM text embedding + categorical metadata + dropout MLP head."""
 
     name = "minilm"
 
-    def __init__(self, config: Optional[ModelConfig] = None):
+    def __init__(self, config: Optional[ModelConfig] = None) -> None:
         config = config or ModelConfig(model_type="minilm")
         super().__init__(config)
         self.meta_embedder = MetaEmbedder(config)
@@ -36,11 +30,11 @@ class MiniLMClassifier(BaseCategoriser):
             nn.Linear(config.hidden // 2, config.n_classes),
         )
 
-        self._encoder = None  # lazy: SentenceTransformer instance
+        self._encoder = None
 
-    # ------------------------------------------------------------------
-    # Text encoding
-    # ------------------------------------------------------------------
+
+
+
     def _ensure_encoder(self):
         if self._encoder is None:
             from sentence_transformers import SentenceTransformer
@@ -67,9 +61,9 @@ class MiniLMClassifier(BaseCategoriser):
         combined = torch.cat([text_embedding, meta_embedding], dim=-1)
         return self.head(combined)
 
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
+
+
+
     def _save_text_encoder(self, directory: Path) -> None:
         encoder = self._ensure_encoder()
         target = directory / "text_encoder"

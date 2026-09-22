@@ -1,13 +1,12 @@
 # UK Merchant Categoriser
 
-A **privacy-first, local machine-learning service** that categorises messy UK
-bank transaction descriptions without calling any closed-source LLM API.
+A privacy-first, local machine-learning service that categorises messy UK bank
+transaction descriptions without calling any closed-source LLM API.
 
-> **Positioning.** This is a **proof of concept trained on synthetic and
-> sandbox data**. It does not claim production-grade performance on real
-> consumer banking data. Real data would require informed user consent and
-> privacy controls. All reported scores are synthetic/sandbox evaluation
-> results.
+> This is a proof of concept trained on synthetic and sandbox data. It does not
+> claim production-grade performance on real consumer banking data, and every
+> reported score is a synthetic/sandbox evaluation result. Real data would need
+> informed user consent and privacy controls.
 
 ## The problem
 
@@ -170,16 +169,16 @@ curl -s http://localhost:8000/predict -X POST \
   }'
 ```
 
-Response:
+Response (values depend on the trained artifact):
 
 ```json
 {
   "predicted_category": "Groceries",
-  "confidence": 0.94,
+  "confidence": 0.874,
   "top_3_predictions": [
-    {"category": "Groceries", "confidence": 0.94},
-    {"category": "Shopping", "confidence": 0.04},
-    {"category": "Dining", "confidence": 0.01}
+    {"category": "Groceries", "confidence": 0.874},
+    {"category": "Fuel", "confidence": 0.056},
+    {"category": "Dining", "confidence": 0.048}
   ],
   "redacted_description": "CARD PAYMENT TESCO STORES 3402 LONDON",
   "cleaned_description": "TESCO STORES LONDON",
@@ -215,7 +214,7 @@ Never commit `.env`, credentials, or access tokens.
 
 ```bash
 make train-minilm      # default model: MiniLM embeddings + metadata + MLP head
-make train-bilstm      # educational baseline: BPE/BiLSTM/attention from scratch
+make train-bilstm      # educational baseline: WordPiece + BiLSTM attention, from scratch
 make evaluate          # test metrics, confusion matrix, confidence plot, errors CSV
 ```
 

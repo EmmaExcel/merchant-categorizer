@@ -1,26 +1,9 @@
-"""Training entry point.
-
-Trains either the default MiniLM classifier or the educational BiLSTM-attention
-baseline on the synthetic/sandbox dataset, with:
-
-* stratified 70/15/15 split grouped by merchant signature
-* CrossEntropyLoss with class weights computed only from the training split
-* AdamW with linear warmup and cosine decay
-* early stopping on validation macro F1
-* best-checkpoint persistence and full inference artifact
-* a generated model card and local file-based run logging
-
-Usage:
-    python -m src.training.train --model-type minilm --epochs 30
-"""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import logging
-import math
 import random
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,15 +20,14 @@ from models.base import ModelConfig, cosine_warmup_schedule, count_parameters
 from models.bilstm_attention import BiLSTMAttentionClassifier
 from preprocessing.features import LABEL2ID, LABELS, encode_metadata_tensor
 from training.config import TrainingConfig
-from training.data import PreparedDataset, meta_features_from_row, prepare_dataset
+from training.data import meta_features_from_row, prepare_dataset
 from training.experiment_logger import FileExperimentLogger
-from training.metrics import compute_all_metrics, macro_f1
+from training.metrics import compute_all_metrics
 
 logger = logging.getLogger(__name__)
 
 
 class TransactionDataset(Dataset):
-    """Rows of a prepared split with precomputed MiniLM embeddings (optional)."""
 
     def __init__(
         self,
@@ -68,8 +50,8 @@ class TransactionDataset(Dataset):
         pos = self.indices[i]
         row = self.frame.iloc[pos]
         meta = meta_features_from_row(row)
-        # MCC dropout: teach the model to classify from text + other metadata
-        # when the MCC is unavailable at inference time.
+
+
         if self.mcc_dropout > 0 and random.random() < self.mcc_dropout:
             meta["mcc_present"] = False
         item = {
@@ -98,15 +80,13 @@ def collate_fn(batch: List[Dict[str, Any]], model_type: str, model=None) -> Dict
 
 
 def compute_class_weights(labels: np.ndarray, n_classes: int) -> torch.Tensor:
-    """Inverse-frequency class weights computed only from the training split."""
     counts = np.bincount(labels, minlength=n_classes).astype(np.float64)
-    counts[counts == 0] = 1.0  # avoid div-by-zero for missing classes
+    counts[counts == 0] = 1.0
     weights = len(labels) / (n_classes * counts)
     return torch.tensor(weights, dtype=torch.float)
 
 
 def get_minilm_embeddings(model, texts: List[str], cache_path: Optional[Path]) -> np.ndarray:
-    """Compute (or load cached) MiniLM embeddings for all cleaned texts."""
     digest = hashlib.sha1("\n".join(texts).encode("utf-8")).hexdigest()[:16]
     if cache_path and cache_path.exists():
         cached = np.load(cache_path, allow_pickle=True)
@@ -135,7 +115,6 @@ def evaluate_split(
     model_type: str,
     batch_size: int,
 ) -> Tuple[float, Dict[str, Any]]:
-    """Return macro F1 and the full metric set for a split."""
     model.eval()
     loader = DataLoader(
         dataset,
@@ -185,8 +164,8 @@ def train(config: TrainingConfig) -> Dict[str, Any]:
         lstm_layers=config.lstm_layers,
         seed=config.seed,
     )
-    # BiLSTM tokenizer is trained only on the training corpus, before the model
-    # is built so the embedding layer matches the real vocabulary size.
+
+
     if config.model_type == "bilstm":
         train_cleaned = frame.iloc[prepared.train_indices]["cleaned_description"].tolist()
         logger.info("Training BiLSTM WordPiece tokenizer on %d train rows...", len(train_cleaned))
@@ -202,7 +181,7 @@ def train(config: TrainingConfig) -> Dict[str, Any]:
     if config.model_type == "bilstm":
         model.tokenizer = tokenizer
 
-    # MiniLM text embeddings are computed once and cached.
+
     embeddings: Optional[np.ndarray] = None
     if config.model_type == "minilm":
         all_cleaned = frame["cleaned_description"].tolist()
@@ -215,7 +194,7 @@ def train(config: TrainingConfig) -> Dict[str, Any]:
     val_dataset = TransactionDataset(frame, prepared.val_indices, config.model_type, embeddings)
     test_dataset = TransactionDataset(frame, prepared.test_indices, config.model_type, embeddings)
 
-    # Class weights from the training split only.
+
     train_labels = frame.iloc[prepared.train_indices]["label"].map(LABEL2ID).to_numpy()
     class_weights = compute_class_weights(train_labels, model_config.n_classes).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
@@ -308,13 +287,13 @@ def train(config: TrainingConfig) -> Dict[str, Any]:
     if best_state is not None:
         model.load_state_dict(best_state)
 
-    # Final evaluation on the held-out test split.
+
     test_f1, test_metrics = evaluate_split(
         model, test_dataset, device, config.model_type, config.batch_size
     )
     logger.info("Test macro F1: %.4f | Top-3 accuracy: %.4f", test_f1, test_metrics["top3_accuracy"])
 
-    # Persist the full inference artifact.
+
     output_dir = Path(config.output_dir)
     training_info = {
         "training_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -329,7 +308,6 @@ def train(config: TrainingConfig) -> Dict[str, Any]:
     model.save_artifact(
         output_dir,
         metrics=test_metrics,
-        preprocessing_config=None,
         training_info=training_info,
     )
     write_model_card(output_dir, config, test_metrics, training_info)
@@ -352,7 +330,6 @@ def write_model_card(
     metrics: Dict[str, Any],
     training_info: Dict[str, Any],
 ) -> None:
-    """Generate a model card describing data, limitations, intended use, metrics."""
     per_class_rows = "\n".join(
         f"| {label} | {m['precision']} | {m['recall']} | {m['f1']} | {m['support']} |"
         for label, m in metrics["per_class"].items()

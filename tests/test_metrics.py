@@ -1,5 +1,3 @@
-"""Tests for metric calculations."""
-
 from __future__ import annotations
 
 import numpy as np
@@ -22,7 +20,7 @@ def test_top1_accuracy():
 
 
 def test_top3_accuracy_definition():
-    # Correct label at rank 3 counts as a hit; at rank 4 it does not.
+    # The correct label at rank 3 counts as a hit; at rank 4 it does not.
     probs = np.array([[0.4, 0.3, 0.2, 0.1]])
     y_true = np.array([2])  # rank 3
     assert top_k_accuracy(y_true, probs, k=3) == 1.0

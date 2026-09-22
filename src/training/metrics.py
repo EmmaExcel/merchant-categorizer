@@ -1,4 +1,3 @@
-"""Training and evaluation metrics computed with numpy (no sklearn needed)."""
 
 from __future__ import annotations
 
@@ -8,11 +7,6 @@ import numpy as np
 
 
 def top_k_accuracy(y_true: np.ndarray, probs: np.ndarray, k: int = 1) -> float:
-    """Fraction of examples whose true label is in the Top-K predictions.
-
-    Top-3 accuracy is defined as: the correct label appears anywhere in the
-    three highest-probability predictions.
-    """
     y_true = np.asarray(y_true)
     probs = np.asarray(probs)
     if len(y_true) == 0:
@@ -23,7 +17,6 @@ def top_k_accuracy(y_true: np.ndarray, probs: np.ndarray, k: int = 1) -> float:
 
 
 def macro_f1(y_true: np.ndarray, y_pred: np.ndarray, n_classes: int) -> float:
-    """Unweighted mean of per-class F1 scores."""
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     scores = []
@@ -43,7 +36,6 @@ def macro_f1(y_true: np.ndarray, y_pred: np.ndarray, n_classes: int) -> float:
 
 
 def weighted_f1(y_true: np.ndarray, y_pred: np.ndarray, n_classes: int) -> float:
-    """Support-weighted mean of per-class F1 scores."""
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     supports = np.bincount(y_true, minlength=n_classes)
@@ -69,7 +61,6 @@ def weighted_f1(y_true: np.ndarray, y_pred: np.ndarray, n_classes: int) -> float
 def classification_report(
     y_true: np.ndarray, y_pred: np.ndarray, labels: List[str]
 ) -> Dict[str, Dict[str, float]]:
-    """Per-class precision, recall, F1 and support."""
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     report: Dict[str, Dict[str, float]] = {}
@@ -102,7 +93,6 @@ def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, n_classes: int) -> 
 
 
 def compute_all_metrics(y_true: np.ndarray, probs: np.ndarray, labels: List[str]) -> Dict:
-    """Compute the full evaluation metric set."""
     y_true = np.asarray(y_true)
     probs = np.asarray(probs)
     y_pred = probs.argmax(axis=1)

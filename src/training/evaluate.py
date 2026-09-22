@@ -1,17 +1,3 @@
-"""Evaluation entry point.
-
-Loads a saved artifact and evaluates it on the held-out test split, producing:
-
-* ``evaluation_report.json`` — macro F1, weighted F1, top-1/top-3 accuracy,
-  per-class precision/recall/F1/support
-* ``confusion_matrix.png``
-* ``confidence_distribution.png``
-* ``incorrect_predictions.csv`` — redacted and cleaned text only (no raw
-  descriptions)
-
-Usage:
-    python -m src.training.evaluate --artifact artifacts/current
-"""
 
 from __future__ import annotations
 
@@ -19,19 +5,19 @@ import argparse
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 import torch
 
 from config import settings
-from models import pick_device, set_seed
+from models import get_model_class, pick_device, set_seed
 from models.base import BaseCategoriser
 from preprocessing.features import ID2LABEL, LABELS
 from training.config import TrainingConfig
 from training.data import PreparedDataset, meta_features_from_row, prepare_dataset
-from training.metrics import compute_all_metrics, confusion_matrix, macro_f1
+from training.metrics import compute_all_metrics, confusion_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +28,6 @@ def evaluate_artifact(
     device: torch.device,
     batch_size: int = 64,
 ) -> Dict[str, Any]:
-    """Run the model over the test split and return predictions + metrics."""
     test_frame = prepared.df.iloc[prepared.test_indices].reset_index(drop=True)
     model.eval()
 
@@ -57,7 +42,10 @@ def evaluate_artifact(
             meta = meta_features[start:start + batch_size]
             prediction = model.predict(texts, meta, device=device, top_k=3)
             all_probs.append(prediction["probabilities"])
-            all_labels.extend(LABELS.index(str(l)) for l in test_frame["label"].iloc[start:start + batch_size])
+            all_labels.extend(
+                LABELS.index(str(label))
+                for label in test_frame["label"].iloc[start:start + batch_size]
+            )
 
     probs = np.concatenate(all_probs, axis=0)
     y_true = np.asarray(all_labels, dtype=np.int64)
@@ -89,7 +77,7 @@ def save_evaluation_outputs(
     frame["true_label"] = [ID2LABEL[int(i)] for i in result["y_true"]]
     frame["max_confidence"] = result["probs"].max(axis=1).round(4)
 
-    # Privacy: incorrect-prediction exports exclude raw descriptions entirely.
+
     incorrect = frame[frame["predicted"] != frame["true_label"]]
     columns = [
         "redacted_description", "cleaned_description", "pii_entity_types",
@@ -156,8 +144,6 @@ def main() -> None:
     )
     set_seed(args.seed)
     device = pick_device(args.device or settings.DEVICE)
-
-    from models import get_model_class
 
     artifact_dir = Path(args.artifact)
     config_data = json.loads((artifact_dir / "config.json").read_text(encoding="utf-8"))

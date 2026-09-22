@@ -2,7 +2,7 @@
 
 Deterministic (seeded) generation of >= 2,000 labelled, noisy UK bank
 transaction descriptions. All names, sort codes, account numbers, emails and
-phone numbers are fictional. No real personal data is used.
+phone numbers are fictional; no real personal data is used.
 
 Usage:
     python scripts/generate_synthetic_data.py [--records 2400] [--seed 42]
@@ -20,10 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 
-# ---------------------------------------------------------------------------
 # Category catalogue
-# ---------------------------------------------------------------------------
-
 CATALOG: Dict[str, Dict[str, Any]] = {
     "Groceries": {
         "merchants": [
@@ -258,7 +255,7 @@ CATALOG: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Transfer-specific description templates (no merchant names).
+# Transfer templates (no merchant names).
 _TRANSFER_TEMPLATES = [
     "TFR TO SAVINGS",
     "TFR TO SAVINGS ACCOUNT",
@@ -272,7 +269,7 @@ _TRANSFER_TEMPLATES = [
     "FASTER PAYMENT FROM CURRENT ACCOUNT",
 ]
 
-# Salary-specific templates.
+
 _SALARY_TEMPLATES = [
     "{rail} {merchant} PAYROLL",
     "{rail} {merchant} SALARY",
@@ -281,8 +278,8 @@ _SALARY_TEMPLATES = [
     "{rail} MONTHLY SALARY {merchant}",
 ]
 
-# Rent-specific templates, including fictional person + sort code + account
-# number examples that exercise the redaction stage.
+
+
 _RENT_PII_TEMPLATES = [
     "BACS JOHN SMITH 20-45-67 12345678 RENT SEPTEMBER",
     "BACS JANE DOE 12-34-56 87654321 RENT AUGUST",
@@ -393,7 +390,6 @@ def _rail_type(rail: str) -> str:
 
 
 def _render_description(label: str, merchant: str, rail: str, location: str) -> Tuple[str, str, Optional[str]]:
-    """Render one noisy description. Returns (description, transaction_type, merchant_name)."""
     merchant_name: Optional[str] = merchant or None
     ref = _ref()
     terminal = _terminal()
@@ -436,7 +432,7 @@ def _render_description(label: str, merchant: str, rail: str, location: str) -> 
     template = random.choice(_DEFAULT_TEMPLATES)
     raw = template.format(rail=rail, merchant=merchant, location=location,
                           terminal=terminal, date=date, ref=ref)
-    # Add extra noise on a subset of records.
+
     if random.random() < 0.15:
         raw = raw.replace("  ", " ")
         raw = raw.strip() + random.choice([" //", " *", "."])
@@ -444,7 +440,6 @@ def _render_description(label: str, merchant: str, rail: str, location: str) -> 
 
 
 def generate_records(total: int, seed: int = 42) -> List[Dict[str, Any]]:
-    """Generate ``total`` synthetic records spread across the 21 labels."""
     random.seed(seed)
     labels = list(CATALOG.keys())
     records: List[Dict[str, Any]] = []
@@ -497,11 +492,6 @@ def generate_records(total: int, seed: int = 42) -> List[Dict[str, Any]]:
 def generate_sandbox_fixture(
     records: List[Dict[str, Any]], n: int = 40, seed: int = 7
 ) -> Tuple[Dict[str, Any], List[int]]:
-    """Project a subset of synthetic records into the TrueLayer sandbox schema.
-
-    Returns the fixture and the indices of the records that were sampled so the
-    CSV writer can mark them with ``source="sandbox"``.
-    """
     random.seed(seed)
     indices = random.sample(range(len(records)), min(n, len(records)))
     transactions = []

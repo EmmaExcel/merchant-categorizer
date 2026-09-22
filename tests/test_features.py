@@ -1,9 +1,6 @@
-"""Tests for feature extraction and label definitions."""
-
 from __future__ import annotations
 
 from preprocessing.features import (
-    AMOUNT_BUCKETS,
     LABELS,
     amount_bucket,
     build_metadata_features,
@@ -32,7 +29,7 @@ def test_amount_buckets():
     assert amount_bucket(999.99) == "large"
     assert amount_bucket(1000.0) == "very_large"
     assert amount_bucket(None) == "micro"
-    assert amount_bucket(-42.0) == "small"  # absolute amount
+    assert amount_bucket(-42.0) == "small"
 
 
 def test_direction_normalisation():

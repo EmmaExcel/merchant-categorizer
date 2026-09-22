@@ -1,5 +1,3 @@
-"""FastAPI dependencies: lazy model loading, redactor, cleaner."""
-
 from __future__ import annotations
 
 import json
@@ -8,8 +6,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from config import settings
-from models.base import BaseCategoriser, pick_device
+from models import get_model_class
+from models.base import pick_device
 from models.bootstrap import BootstrapCategoriser, bootstrap_model_info
+from preprocessing.features import LABELS
 from preprocessing.transaction_cleaner import TransactionCleaner
 from privacy.redactor_adapter import RedactorAdapter, get_redactor
 
@@ -19,9 +19,7 @@ _model_cache: Dict[str, Any] = {}
 _cleaner_cache: Optional[TransactionCleaner] = None
 
 
-def _load_artifact_model():
-    from models import get_model_class
-
+def _load_artifact_model() -> Any:
     artifact_dir = Path(settings.MODEL_DIR)
     config_data = json.loads((artifact_dir / "config.json").read_text(encoding="utf-8"))
     model_class = get_model_class(config_data["model_type"])
@@ -31,12 +29,7 @@ def _load_artifact_model():
     return model
 
 
-def get_model():
-    """Return the serving model, lazily loading the artifact once.
-
-    Falls back to the deterministic bootstrap categoriser when no trained
-    artifact exists so fixture mode works with no credentials and no training.
-    """
+def get_model() -> Any:
     cache_key = str(settings.MODEL_DIR)
     if cache_key not in _model_cache:
         artifact_dir = Path(settings.MODEL_DIR)
@@ -69,8 +62,6 @@ def get_model_info() -> Dict[str, Any]:
     metrics_path = Path(settings.MODEL_DIR) / "metrics.json"
     if metrics_path.exists():
         metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
-
-    from preprocessing.features import LABELS
 
     return {
         "model_name": getattr(model, "name", "unknown"),

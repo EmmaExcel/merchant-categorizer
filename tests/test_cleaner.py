@@ -1,5 +1,3 @@
-"""Tests for the transaction cleaning rules."""
-
 from __future__ import annotations
 
 

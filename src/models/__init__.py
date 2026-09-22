@@ -1,5 +1,3 @@
-"""Model implementations and artifact helpers."""
-
 from models.base import (
     BaseCategoriser,
     MetaEmbedder,
@@ -27,7 +25,6 @@ def get_model_class(model_type: str):
 
 
 def build_model(model_type: str, config: ModelConfig):
-    """Build a fresh model instance for training."""
     return get_model_class(model_type)(config)
 
 

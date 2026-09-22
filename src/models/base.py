@@ -1,9 +1,9 @@
-"""Shared model interface and metadata embedding utilities."""
-
 from __future__ import annotations
 
+import io
 import json
 import math
+import random
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -14,19 +14,16 @@ import torch
 from torch import nn
 
 from preprocessing.features import (
-    AMOUNT_BUCKET2ID,
-    DIRECTION2ID,
-    MCC_BUCKET_COUNT,
-    RAIL2ID,
     ID2LABEL,
     LABELS,
+    MCC_BUCKET_COUNT,
+    RAIL2ID,
+    encode_metadata_tensor,
 )
 
 
 @dataclass
 class ModelConfig:
-    """Serialisable configuration shared by all model variants."""
-
     model_type: str = "minilm"
     n_classes: int = len(LABELS)
     amount_vocab: int = 5
@@ -39,11 +36,10 @@ class ModelConfig:
     hidden: int = 256
     max_length: int = 48
     seed: int = 42
-    # MiniLM-specific
+
     text_encoder_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     text_dim: int = 384
-    freeze_text_encoder: bool = True
-    # BiLSTM-specific
+
     vocab_size: int = 4000
     embedding_dim: int = 128
     lstm_hidden: int = 128
@@ -60,8 +56,6 @@ class ModelConfig:
 
 
 class MetaEmbedder(nn.Module):
-    """Embeds categorical transaction metadata and appends the PII type vector."""
-
     def __init__(self, config: ModelConfig):
         super().__init__()
         dim = config.meta_embed_dim
@@ -76,8 +70,8 @@ class MetaEmbedder(nn.Module):
         direction = self.direction_emb(meta["direction"])
         rail = self.rail_emb(meta["payment_rail"])
         mcc = self.mcc_emb(meta["mcc"])
-        # Gate the MCC embedding so a missing MCC contributes no signal
-        # instead of biasing the head towards the "missing" bucket.
+
+
         if "mcc_present" in meta:
             mcc = mcc * meta["mcc_present"].unsqueeze(-1)
         pii = meta["pii_types"]
@@ -85,38 +79,36 @@ class MetaEmbedder(nn.Module):
 
 
 class BaseCategoriser(nn.Module, ABC):
-    """Common interface every categoriser model implements."""
-
     name: str = "base"
 
     def __init__(self, config: ModelConfig):
         super().__init__()
         self.config = config
 
-    # ------------------------------------------------------------------
-    # Abstract API
-    # ------------------------------------------------------------------
+
+
+
     @abstractmethod
     def encode_texts(self, texts: List[str]) -> Dict[str, torch.Tensor]:
-        """Tokenize/encode cleaned descriptions into model input tensors."""
+        ...
 
     @abstractmethod
     def forward(
         self, text_inputs: Dict[str, torch.Tensor], meta: Dict[str, torch.Tensor]
     ) -> torch.Tensor:
-        """Return class logits of shape ``(batch, n_classes)``."""
+        ...
 
     @abstractmethod
     def _save_text_encoder(self, directory: Path) -> None:
-        """Persist the text encoder/tokenizer part of the artifact."""
+        ...
 
     @abstractmethod
     def _load_text_encoder(self, directory: Path) -> None:
-        """Restore the text encoder/tokenizer part of the artifact."""
+        ...
 
-    # ------------------------------------------------------------------
-    # Shared prediction / serialisation logic
-    # ------------------------------------------------------------------
+
+
+
     @torch.no_grad()
     def predict(
         self,
@@ -125,13 +117,10 @@ class BaseCategoriser(nn.Module, ABC):
         device: Optional[torch.device] = None,
         top_k: int = 3,
     ) -> Dict[str, Any]:
-        """Return probabilities and Top-K predictions for a batch."""
         self.eval()
         device = device or next(self.parameters()).device
         text_inputs = self.encode_texts(texts)
         text_inputs = {k: v.to(device) for k, v in text_inputs.items()}
-
-        from preprocessing.features import encode_metadata_tensor
 
         meta = encode_metadata_tensor(meta_features)
         meta = {k: v.to(device) for k, v in meta.items()}
@@ -154,7 +143,6 @@ class BaseCategoriser(nn.Module, ABC):
         preprocessing_config: Optional[Dict[str, Any]] = None,
         training_info: Optional[Dict[str, Any]] = None,
     ) -> Path:
-        """Save the full inference artifact."""
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -210,12 +198,6 @@ class BaseCategoriser(nn.Module, ABC):
         return directory
 
     def _state_dict_for_artifact(self) -> Dict[str, torch.Tensor]:
-        """State dict to persist in ``model.pt``.
-
-        Text encoders that are saved separately (e.g. the MiniLM transformer)
-        are excluded so the artifact stays small and loads independently of
-        the text-encoder files.
-        """
         return {
             key: value
             for key, value in self.state_dict().items()
@@ -223,8 +205,9 @@ class BaseCategoriser(nn.Module, ABC):
         }
 
     @classmethod
-    def load_artifact(cls, directory: Path, device: Optional[torch.device] = None):
-        """Load a saved artifact into a model instance."""
+    def load_artifact(
+        cls, directory: Path, device: Optional[torch.device] = None
+    ) -> "BaseCategoriser":
         from models import get_model_class
 
         directory = Path(directory)
@@ -261,22 +244,17 @@ class BaseCategoriser(nn.Module, ABC):
 
 
 def _serialise_torch(state_dict: Dict[str, torch.Tensor]) -> bytes:
-    import io
-
     buffer = io.BytesIO()
     torch.save(state_dict, buffer)
     return buffer.getvalue()
 
 
 def _deserialise_torch(raw: bytes) -> Dict[str, torch.Tensor]:
-    import io
-
     buffer = io.BytesIO(raw)
     return torch.load(buffer, map_location="cpu", weights_only=False)
 
 
 def pick_device(requested: Optional[str] = None) -> torch.device:
-    """Resolve ``auto``/``cpu``/``cuda``/``mps`` to a torch device."""
     if requested is None:
         requested = "auto"
     requested = requested.strip().lower()
@@ -298,9 +276,6 @@ def pick_device(requested: Optional[str] = None) -> torch.device:
 
 
 def set_seed(seed: int) -> None:
-    """Deterministic random seed configuration for PyTorch/numpy/Python."""
-    import random
-
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -320,7 +295,6 @@ def cosine_warmup_schedule(
     total_steps: int,
     current_step: int,
 ) -> None:
-    """Linear warmup followed by cosine decay to zero."""
     if current_step < warmup_steps and warmup_steps > 0:
         lr_scale = current_step / max(1, warmup_steps)
     else:

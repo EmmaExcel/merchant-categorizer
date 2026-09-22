@@ -365,9 +365,9 @@ class PiiEngine:
             for t in texts
         ]
 
-# NOTE (vendor adaptation): the upstream module instantiates a global engine at
-# import time. We keep the same public attribute but build it lazily so that
-# importing this module never fails when presidio or the spaCy model is missing.
+# Vendor adaptation: upstream builds a global engine at import time; we keep the
+# same public attribute but build it lazily via get_pii_engine() so importing
+# never fails when presidio or the spaCy model is missing.
 pii_engine = None
 
 

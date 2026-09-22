@@ -1,6 +1,6 @@
-"""Model forward-pass and artifact round-trip tests."""
-
 from __future__ import annotations
+
+import importlib
 
 import pytest
 
@@ -77,8 +77,8 @@ def test_mcc_embedding_gated_when_missing():
     )
     output_without = embedder(meta_without_mcc)
     output_with = embedder(meta_with_mcc)
-    # The MCC slice (3 * meta_embed_dim .. 4 * meta_embed_dim) must be zero
-    # when MCC is missing, so the missing bucket cannot bias the head.
+
+
     start = 3 * config.meta_embed_dim
     end = 4 * config.meta_embed_dim
     assert torch.all(output_without[:, start:end] == 0)
@@ -86,17 +86,13 @@ def test_mcc_embedding_gated_when_missing():
 
 
 @pytest.mark.skipif(
-    not __import__("importlib").util.find_spec("sentence_transformers"),
+    importlib.util.find_spec("sentence_transformers") is None,
     reason="sentence-transformers not installed",
 )
 def test_minilm_forward_pass_shape():
-    import importlib
-
-    assert importlib.util.find_spec("sentence_transformers")
-    from preprocessing.features import encode_metadata_tensor
-
     from models.base import ModelConfig
     from models.minilm_classifier import MiniLMClassifier
+    from preprocessing.features import encode_metadata_tensor
 
     config = ModelConfig(model_type="minilm", hidden=64, meta_embed_dim=8)
     model = MiniLMClassifier(config)

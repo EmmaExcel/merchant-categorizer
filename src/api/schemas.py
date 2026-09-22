@@ -1,5 +1,3 @@
-"""Pydantic schemas for the API."""
-
 from __future__ import annotations
 
 from typing import List, Optional

@@ -1,19 +1,15 @@
-"""Lightweight file-based experiment logger (MLflow-free, no external service)."""
-
 from __future__ import annotations
 
 import json
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from config import settings
 
 
 class FileExperimentLogger:
-    """Appends one JSON object per run to ``artifacts/runs/runs.jsonl``."""
 
     def __init__(self, runs_dir: Optional[Path] = None) -> None:
         self.runs_dir = Path(runs_dir or settings.RUNS_DIR)
@@ -56,16 +52,3 @@ class FileExperimentLogger:
     def _append(self, entry: Dict[str, Any]) -> None:
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, default=str) + "\n")
-
-    def list_runs(self) -> List[Dict[str, Any]]:
-        if not self.path.exists():
-            return []
-        runs: List[Dict[str, Any]] = []
-        for line in self.path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                runs.append(json.loads(line))
-        return runs
-
-
-def time_ms() -> float:
-    return time.time() * 1000.0

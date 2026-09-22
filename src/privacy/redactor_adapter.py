@@ -1,25 +1,3 @@
-"""PII redaction adapter for UK bank transaction descriptions.
-
-This module is the single choke point through which every raw transaction
-description passes before preprocessing or persistence.
-
-It wraps the vendored `UK-PII-Detector-Redactor`_ implementation (Microsoft
-Presidio + spaCy plus UK recognisers) and layers a deterministic UK banking
-regex backend on top for identifiers the upstream project does not cover, such
-as sort codes and account numbers.
-
-.. _UK-PII-Detector-Redactor: https://github.com/EmmaExcel/UK-PII-Detector-Redactor
-
-Design rules
-------------
-* Accept raw transaction description text.
-* Call the upstream ``PiiEngine.redact_text`` interface unchanged when
-  available.
-* Return redacted text plus a structured list of detected entity types.
-* Fail safely: raw PII is never written to logs or exception messages.
-* Easy to replace: implement :class:`RedactorBackend` and pass it to
-  :class:`RedactorAdapter` (or set ``UKMC_REDACTOR_BACKEND`` later).
-"""
 
 from __future__ import annotations
 
@@ -30,9 +8,9 @@ from typing import Dict, List, Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Canonical placeholders required by the project
-# ---------------------------------------------------------------------------
+
+
+
 
 PLACEHOLDERS: Dict[str, str] = {
     "PERSON": "[PERSON]",
@@ -46,9 +24,9 @@ PLACEHOLDERS: Dict[str, str] = {
     "OTHER": "[REDACTED]",
 }
 
-# Upstream entity types we request from the UK-PII-Detector-Redactor. We
-# deliberately exclude ORGANIZATION and LOCATION for merchant descriptions:
-# "TESCO STORES LONDON" must survive redaction so the classifier can use it.
+
+
+
 UPSTREAM_TARGET_ENTITIES = [
     "PERSON",
     "EMAIL_ADDRESS",
@@ -59,7 +37,7 @@ UPSTREAM_TARGET_ENTITIES = [
     "IBAN_CODE",
 ]
 
-# Upstream entity type -> canonical entity type used across this project.
+
 UPSTREAM_TO_CANONICAL = {
     "PERSON": "PERSON",
     "EMAIL_ADDRESS": "EMAIL",
@@ -75,10 +53,21 @@ UPSTREAM_TO_CANONICAL = {
 }
 
 
+_ENTITY_PRIORITY: Dict[str, int] = {
+    "SORT_CODE": 9,
+    "ACCOUNT_NUMBER": 8,
+    "EMAIL": 7,
+    "PHONE": 7,
+    "CARD_NUMBER": 7,
+    "IBAN": 7,
+    "ADDRESS": 6,
+    "PERSON": 5,
+    "OTHER": 1,
+}
+
+
 @dataclass(frozen=True)
 class RedactionEntity:
-    """A single redacted entity with its canonical type and placeholder."""
-
     entity_type: str
     placeholder: str
     start: int
@@ -89,11 +78,6 @@ class RedactionEntity:
 
 @dataclass
 class RedactionResult:
-    """Result of redacting one description.
-
-    ``redacted_text`` never contains the raw matched PII values. On failure,
-    ``ok`` is False and ``redacted_text`` is a safe controlled marker.
-    """
 
     redacted_text: str
     entities: List[RedactionEntity] = field(default_factory=list)
@@ -103,42 +87,27 @@ class RedactionResult:
 
     @property
     def entity_types(self) -> List[str]:
-        """Ordered list of canonical entity types that were redacted."""
         return [e.entity_type for e in self.entities]
 
 
 class RedactionError(Exception):
-    """Controlled redaction failure. Never carries raw PII in the message."""
 
     def __init__(self, message: str = "Redaction failed; raw text was not logged."):
         super().__init__(message)
 
 
 class RedactorBackend(Protocol):
-    """Minimal interface for a pluggable redaction backend."""
-
     name: str
 
     def detect(self, text: str) -> List[RedactionEntity]:
-        """Return redaction entities for ``text`` without mutating it."""
         ...
 
 
-# ---------------------------------------------------------------------------
-# Backend 1: vendored UK-PII-Detector-Redactor (presidio + spaCy)
-# ---------------------------------------------------------------------------
+
+
+
 
 class PresidioUkBackend:
-    """Calls the vendored upstream ``PiiEngine.redact_text`` interface.
-
-    The upstream API used here is:
-
-    ``PiiEngine.redact_text(text, entities=None, mode="placeholder",
-    mask_char="*", score_threshold=0.5) -> Dict``
-
-    with keys ``original_text``, ``redacted_text``, ``entities`` and
-    ``total_entities_found``.
-    """
 
     name = "uk-pii-detector-redactor"
 
@@ -157,7 +126,7 @@ class PresidioUkBackend:
 
             self._engine = get_pii_engine()
             logger.info("uk-pii-detector-redactor engine loaded (presidio + spaCy)")
-        except Exception as exc:  # noqa: BLE001 - fail safe, never log raw text
+        except Exception as exc:  # noqa: BLE001
             self._init_error = (
                 "uk-pii-detector-redactor unavailable; falling back to regex backend"
             )
@@ -190,27 +159,21 @@ class PresidioUkBackend:
         return entities
 
 
-# ---------------------------------------------------------------------------
-# Backend 2: deterministic UK banking regex (always available, no network)
-# ---------------------------------------------------------------------------
+
+
+
 
 class UkBankingRegexBackend:
-    """Deterministic regex redaction for UK banking identifiers.
-
-    Covers the entity types required by the project that the upstream redactor
-    does not detect (sort codes, account numbers) plus safety-net patterns for
-    email, UK phone numbers, postcodes/addresses and card numbers.
-    """
 
     name = "uk-banking-regex"
 
-    # Order matters: longer / more specific patterns first.
+
     _PATTERNS: List[tuple[str, re.Pattern[str], float]] = [
-        # UK sort code: 20-45-67
+
         ("SORT_CODE", re.compile(r"\b\d{2}-\d{2}-\d{2}\b"), 1.0),
-        # Email address
+
         ("EMAIL", re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b"), 1.0),
-        # UK phone numbers: mobile 07xxx, +44 7xxx, geographic 01/02/03
+
         (
             "PHONE",
             re.compile(
@@ -219,19 +182,19 @@ class UkBankingRegexBackend:
             ),
             1.0,
         ),
-        # IBAN (GB-prefixed, common spacing)
+
         (
             "IBAN",
             re.compile(r"\bGB\d{2}\s?[A-Z]{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{2}\b"),
             1.0,
         ),
-        # Card number: 13-19 digits, optionally space/grouped
+
         (
             "CARD_NUMBER",
             re.compile(r"\b(?:\d[ -]?){12,18}\d\b"),
             0.9,
         ),
-        # UK postcode -> ADDRESS
+
         (
             "ADDRESS",
             re.compile(
@@ -240,7 +203,7 @@ class UkBankingRegexBackend:
             ),
             1.0,
         ),
-        # Street address heuristics: number + street keyword
+
         (
             "ADDRESS",
             re.compile(
@@ -249,19 +212,19 @@ class UkBankingRegexBackend:
             ),
             0.9,
         ),
-        # Account number: 8 digits directly after a sort code
+
         (
             "ACCOUNT_NUMBER",
             re.compile(r"(?<=\d{2}-\d{2}-\d{2})\s+(\d{8})\b"),
             1.0,
         ),
-        # Account/reference numbers with explicit labels
+
         (
             "ACCOUNT_NUMBER",
             re.compile(r"\b(?:ACCOUNT|ACCT|REFERENCE|REF)\s*[:#]?\s*(\d{6,12})\b"),
             0.9,
         ),
-        # Person name in a payment context: "BACS JOHN SMITH 20-45-67"
+
         (
             "PERSON",
             re.compile(
@@ -270,7 +233,7 @@ class UkBankingRegexBackend:
             ),
             0.85,
         ),
-        # Person name before an account number label
+
         (
             "PERSON",
             re.compile(
@@ -287,7 +250,7 @@ class UkBankingRegexBackend:
     }
 
     def detect(self, text: str) -> List[RedactionEntity]:
-        # Normalise case for matching but keep offsets against the original.
+
         upper = text.upper()
         candidates: List[RedactionEntity] = []
         for entity_type, pattern, score in self._PATTERNS:
@@ -296,7 +259,7 @@ class UkBankingRegexBackend:
                 if entity_type in {"SORT_CODE", "EMAIL", "PHONE", "IBAN", "CARD_NUMBER", "ADDRESS"}:
                     group_start, group_end = start, end
                 else:
-                    # PERSON / ACCOUNT_NUMBER patterns capture the identifier in group 1.
+
                     if match.lastindex and match.group(1) is not None:
                         group_start, group_end = match.span(1)
                     else:
@@ -320,24 +283,11 @@ class UkBankingRegexBackend:
 
     @classmethod
     def _looks_like_company(cls, matched_text: str) -> bool:
-        """Avoid redacting company names as PERSON (e.g. 'ACME LTD')."""
         tokens = matched_text.split()
         return any(token in cls._COMPANY_TOKENS for token in tokens)
 
     @staticmethod
     def _resolve_overlaps(candidates: List[RedactionEntity]) -> List[RedactionEntity]:
-        """Keep the best entity when spans overlap (priority then length)."""
-        priority = {
-            "SORT_CODE": 9,
-            "ACCOUNT_NUMBER": 8,
-            "EMAIL": 7,
-            "PHONE": 7,
-            "CARD_NUMBER": 7,
-            "IBAN": 7,
-            "ADDRESS": 6,
-            "PERSON": 5,
-            "OTHER": 1,
-        }
         candidates.sort(key=lambda e: (e.start, e.end))
         resolved: List[RedactionEntity] = []
         for candidate in candidates:
@@ -349,9 +299,13 @@ class UkBankingRegexBackend:
                 continue
             resolved.append(candidate)
         resolved.sort(
-            key=lambda e: (-priority.get(e.entity_type, 0), e.start, -(e.end - e.start))
+            key=lambda e: (
+                -_ENTITY_PRIORITY.get(e.entity_type, 0),
+                e.start,
+                -(e.end - e.start),
+            )
         )
-        # Re-resolve after priority sort.
+
         final: List[RedactionEntity] = []
         for candidate in resolved:
             overlaps = any(
@@ -364,23 +318,11 @@ class UkBankingRegexBackend:
         return final
 
 
-# ---------------------------------------------------------------------------
-# The adapter
-# ---------------------------------------------------------------------------
+
+
+
 
 class RedactorAdapter:
-    """Redacts raw transaction descriptions through pluggable backends.
-
-    Usage::
-
-        adapter = RedactorAdapter()
-        result = adapter.redact("BACS JOHN SMITH 20-45-67 12345678")
-        result.redacted_text  # "BACS [PERSON] [SORT_CODE] [ACCOUNT_NUMBER]"
-        result.entity_types   # ["PERSON", "SORT_CODE", "ACCOUNT_NUMBER"]
-
-    To replace the redactor later, implement :class:`RedactorBackend` and pass
-    ``backends=[MyBackend()]``.
-    """
 
     def __init__(
         self,
@@ -397,12 +339,6 @@ class RedactorAdapter:
             self.backends.append(UkBankingRegexBackend())
 
     def redact(self, text: str) -> RedactionResult:
-        """Redact ``text`` and return a structured result.
-
-        This method never raises for redaction failures: it returns a
-        :class:`RedactionResult` with ``ok=False`` and a controlled error that
-        contains no raw text.
-        """
         if not text or not text.strip():
             return RedactionResult(
                 redacted_text=text or "", entities=[], ok=True, backend="empty"
@@ -419,10 +355,10 @@ class RedactorAdapter:
                 if detected:
                     collected.extend(detected)
                     used_backends.append(backend.name)
-            except Exception as exc:  # noqa: BLE001 - fail safe per backend
+            except Exception as exc:  # noqa: BLE001
                 backend_name = getattr(backend, "name", type(backend).__name__)
-                # Log each failing backend once per adapter instance, and never
-                # include raw text in log output.
+
+
                 if backend_name not in warned_backends:
                     warned_backends.add(backend_name)
                     logger.warning(
@@ -433,8 +369,8 @@ class RedactorAdapter:
 
         if not collected:
             if successful_backends == 0:
-                # Controlled failure: never return raw text when redaction
-                # could not run at all.
+
+
                 return RedactionResult(
                     redacted_text="[REDACTION_ERROR]",
                     entities=[],
@@ -457,18 +393,6 @@ class RedactorAdapter:
 
     @staticmethod
     def _merge_entities(entities: List[RedactionEntity]) -> List[RedactionEntity]:
-        """Merge entities from several backends, dropping overlaps by priority."""
-        priority = {
-            "SORT_CODE": 9,
-            "ACCOUNT_NUMBER": 8,
-            "EMAIL": 7,
-            "PHONE": 7,
-            "CARD_NUMBER": 7,
-            "IBAN": 7,
-            "ADDRESS": 6,
-            "PERSON": 5,
-            "OTHER": 1,
-        }
         ordered = sorted(entities, key=lambda e: e.start)
         merged: List[RedactionEntity] = []
         for entity in ordered:
@@ -479,10 +403,10 @@ class RedactorAdapter:
             if not overlaps:
                 merged.append(entity)
                 continue
-            # Replace lower-priority overlaps only if strictly better.
+
             for i, existing in enumerate(merged):
                 if not (entity.end <= existing.start or entity.start >= existing.end):
-                    if priority.get(entity.entity_type, 0) > priority.get(
+                    if _ENTITY_PRIORITY.get(entity.entity_type, 0) > _ENTITY_PRIORITY.get(
                         existing.entity_type, 0
                     ):
                         merged[i] = entity
@@ -506,12 +430,11 @@ class RedactorAdapter:
         return "".join(chunks)
 
 
-#: Process-wide default adapter. Constructed lazily by :func:`get_redactor`.
+
 _default_adapter: Optional[RedactorAdapter] = None
 
 
 def get_redactor() -> RedactorAdapter:
-    """Return the process-wide redactor adapter (lazy singleton)."""
     global _default_adapter
     if _default_adapter is None:
         from config import settings

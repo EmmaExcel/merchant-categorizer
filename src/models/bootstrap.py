@@ -1,10 +1,3 @@
-"""Bootstrap keyword categoriser used when no trained artifact is present.
-
-This is a deterministic, dependency-free fallback so ``/predict`` works in
-fixture mode immediately. It is **not** a trained model and is clearly labelled
-as ``bootstrap`` in API responses. Train a real model with ``make train`` and
-the API will serve it automatically.
-"""
 
 from __future__ import annotations
 
@@ -12,10 +5,8 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from preprocessing.features import ID2LABEL, LABELS, LABEL2ID
+from preprocessing.features import LABEL2ID, LABELS
 
-# Keyword evidence: cleaned token (or substring) -> label. Higher specificity
-# first. Used only by the bootstrap fallback.
 _KEYWORDS: List[tuple[str, str]] = [
     ("CASH WITHDRAWAL", "Cash Withdrawal"),
     ("WITHDRAWAL", "Cash Withdrawal"),
@@ -188,7 +179,6 @@ _KEYWORDS: List[tuple[str, str]] = [
 
 
 class BootstrapCategoriser:
-    """Deterministic keyword fallback. Not a trained model."""
 
     name = "bootstrap"
     version = "0.0.0"
@@ -214,7 +204,7 @@ class BootstrapCategoriser:
             if keyword in text:
                 scores[LABEL2ID[label]] += 1.0
 
-        # Metadata priors.
+
         if meta.get("direction") == "credit":
             scores[LABEL2ID["Transfers"]] += 0.4
             scores[LABEL2ID["Salary"]] += 0.4
@@ -223,10 +213,6 @@ class BootstrapCategoriser:
 
         total = scores.sum()
         return scores / total
-
-
-def is_bootstrap(model: Any) -> bool:
-    return isinstance(model, BootstrapCategoriser)
 
 
 def bootstrap_model_info() -> Dict[str, Any]:

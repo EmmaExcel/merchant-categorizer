@@ -1,15 +1,9 @@
-"""Category labels, metadata features, and their encoding.
-
-These features are shared by the ingestion, training, model, and API layers so
-the metadata representation is consistent end-to-end.
-"""
 
 from __future__ import annotations
 
 import re
 from typing import Any, Dict, List, Optional
 
-#: The 21 supported category labels (fixed, ordered).
 LABELS: List[str] = [
     "Groceries",
     "Dining",
@@ -37,23 +31,15 @@ LABELS: List[str] = [
 LABEL2ID: Dict[str, int] = {label: i for i, label in enumerate(LABELS)}
 ID2LABEL: Dict[int, str] = {i: label for i, label in enumerate(LABELS)}
 
-# ---------------------------------------------------------------------------
-# Amount buckets
-# ---------------------------------------------------------------------------
+
+
+
 
 AMOUNT_BUCKETS: List[str] = ["micro", "small", "medium", "large", "very_large"]
 AMOUNT_BUCKET2ID: Dict[str, int] = {b: i for i, b in enumerate(AMOUNT_BUCKETS)}
 
 
 def amount_bucket(amount: Optional[float]) -> str:
-    """Map an absolute amount to a bucket.
-
-    * micro: under £10
-    * small: £10 to £49.99
-    * medium: £50 to £199.99
-    * large: £200 to £999.99
-    * very_large: £1,000 and above
-    """
     if amount is None:
         return "micro"
     value = abs(float(amount))
@@ -72,16 +58,14 @@ def amount_bucket_id(amount: Optional[float]) -> int:
     return AMOUNT_BUCKET2ID[amount_bucket(amount)]
 
 
-# ---------------------------------------------------------------------------
-# Direction
-# ---------------------------------------------------------------------------
 
-DIRECTIONS: List[str] = ["debit", "credit"]
+
+
+
 DIRECTION2ID: Dict[str, int] = {"debit": 0, "credit": 1}
 
 
 def normalise_direction(direction: Optional[str]) -> str:
-    """Normalise direction aliases to ``debit`` or ``credit``."""
     if direction is None:
         return "debit"
     value = str(direction).strip().lower()
@@ -96,9 +80,9 @@ def direction_id(direction: Optional[str]) -> int:
     return DIRECTION2ID[normalise_direction(direction)]
 
 
-# ---------------------------------------------------------------------------
-# Payment rails / transaction types
-# ---------------------------------------------------------------------------
+
+
+
 
 PAYMENT_RAILS: List[str] = [
     "CARD",
@@ -138,11 +122,6 @@ _RAIL_PATTERNS: List[tuple[str, re.Pattern[str]]] = [
 
 
 def detect_payment_rail(transaction_type: Optional[str], raw_description: Optional[str]) -> str:
-    """Detect the normalised payment rail.
-
-    Structured ``transaction_type`` takes precedence when it maps cleanly onto a
-    rail; otherwise the raw description is pattern-matched.
-    """
     if transaction_type:
         value = str(transaction_type).strip().upper()
         aliases = {
@@ -188,86 +167,81 @@ def rail_id(transaction_type: Optional[str], raw_description: Optional[str]) -> 
     return RAIL2ID[detect_payment_rail(transaction_type, raw_description)]
 
 
-# ---------------------------------------------------------------------------
-# MCC encoding
-# ---------------------------------------------------------------------------
 
-#: Number of MCC buckets used by the models. Common merchant categories map to a
-#: curated bucket; unknown MCCs are hashed into the remaining space.
+
+
+
+
+
 MCC_BUCKET_COUNT = 24
 
 _CURATED_MCC_BUCKETS: Dict[str, int] = {
-    # Groceries / supermarkets
+
     "5411": 0,
     "5499": 0,
     "5300": 0,
-    # Dining / restaurants
+
     "5812": 1,
     "5814": 1,
     "5811": 1,
-    # Transport
+
     "4111": 2,
     "4121": 2,
     "4131": 2,
     "4789": 2,
-    # Fuel
+
     "5541": 3,
     "5542": 3,
     "5172": 3,
-    # General retail
+
     "5310": 4,
     "5399": 4,
     "5691": 4,
     "5311": 4,
-    # Entertainment
+
     "7832": 5,
     "7999": 5,
     "7922": 5,
-    # Travel
+
     "4511": 6,
     "4722": 6,
     "4411": 6,
-    # Utilities / telecoms
+
     "4900": 7,
     "4814": 7,
     "4812": 7,
     "4899": 7,
-    # Insurance
+
     "6300": 8,
     "5960": 8,
-    # Healthcare
+
     "5912": 9,
     "8011": 9,
     "8021": 9,
     "8049": 9,
-    # Education
+
     "8220": 10,
     "8299": 10,
-    # Cash
+
     "6011": 11,
     "6010": 11,
-    # Subscriptions / digital services
+
     "5968": 12,
     "5734": 12,
-    # Charity
+
     "8398": 13,
-    # Taxes / government
+
     "9399": 14,
     "9211": 14,
-    # Financial services / fees
+
     "6012": 15,
     "6051": 15,
 }
 
 
 def mcc_bucket(mcc: Optional[str | int]) -> int:
-    """Map an MCC to one of ``MCC_BUCKET_COUNT`` buckets.
-
-    The first 16 buckets are curated; unknown MCCs hash into the remaining 8
-    buckets so unseen codes still receive a stable representation.
-    """
-    if mcc is None or mcc == "" or str(mcc).strip() == "":
-        return MCC_BUCKET_COUNT - 1  # reserved "missing MCC" bucket
+    if mcc is None or str(mcc).strip() == "":
+        return MCC_BUCKET_COUNT - 1
     code = re.sub(r"\D", "", str(mcc))
     if not code:
         return MCC_BUCKET_COUNT - 1
@@ -277,9 +251,9 @@ def mcc_bucket(mcc: Optional[str | int]) -> int:
     return 16 + (fallback % (MCC_BUCKET_COUNT - 17))
 
 
-# ---------------------------------------------------------------------------
-# PII metadata
-# ---------------------------------------------------------------------------
+
+
+
 
 CANONICAL_PII_TYPES: List[str] = [
     "PERSON",
@@ -299,14 +273,13 @@ def pii_detected(entity_types: Optional[List[str]]) -> bool:
 
 
 def pii_type_vector(entity_types: Optional[List[str]]) -> List[int]:
-    """One-hot vector over :data:`CANONICAL_PII_TYPES` for which PII was found."""
     found = {str(t).upper() for t in (entity_types or [])}
     return [1 if t in found else 0 for t in CANONICAL_PII_TYPES]
 
 
-# ---------------------------------------------------------------------------
-# Combined metadata feature dict + tensor encoding
-# ---------------------------------------------------------------------------
+
+
+
 
 def build_metadata_features(
     amount: Optional[float],
@@ -316,7 +289,6 @@ def build_metadata_features(
     pii_entities: Optional[List[str]],
     raw_description: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build the metadata feature dict consumed by models and the API."""
     return {
         "amount_bucket": amount_bucket(amount),
         "amount_bucket_id": amount_bucket_id(amount),
@@ -332,10 +304,6 @@ def build_metadata_features(
 
 
 def encode_metadata_tensor(batch_features: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Convert a list of metadata feature dicts into LongTensors for a model.
-
-    The caller is expected to move the returned tensors to the model device.
-    """
     import torch
 
     return {

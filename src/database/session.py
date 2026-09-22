@@ -1,5 +1,3 @@
-"""Database engine, session factory, and FastAPI dependency."""
-
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -18,7 +16,7 @@ _SessionLocal = None
 def _make_engine():
     database_url = settings.DATABASE_URL
     if database_url.startswith("sqlite"):
-        # Ensure the parent directory exists for SQLite files.
+
         path = database_url.replace("sqlite:///", "", 1)
         if path and not path.startswith(":memory:"):
             Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -46,12 +44,10 @@ def get_session_factory():
 
 
 def init_db() -> None:
-    """Create all tables (development convenience; use Alembic for migrations)."""
     Base.metadata.create_all(bind=get_engine())
 
 
 def get_db() -> Generator[Session, None, None]:
-    """FastAPI dependency yielding a scoped database session."""
     factory = get_session_factory()
     session = factory()
     try:

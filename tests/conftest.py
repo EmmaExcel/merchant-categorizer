@@ -1,5 +1,3 @@
-"""Shared pytest fixtures."""
-
 from __future__ import annotations
 
 import sys
@@ -17,20 +15,18 @@ from config import settings  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _env_sandbox(monkeypatch, tmp_path):
-    """Isolate every test from real files, credentials and databases."""
     monkeypatch.setattr(settings, "FIXTURE_MODE", True)
     monkeypatch.setattr(settings, "PII_USE_PRESIDIO", False)
     monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     monkeypatch.setattr(settings, "MODEL_DIR", str(tmp_path / "model"))
-    monkeypatch.setattr(settings, "MODEL_TYPE", "bilstm")
     monkeypatch.setattr(settings, "DEVICE", "cpu")
     monkeypatch.setattr(settings, "SEED", 42)
     monkeypatch.setattr(settings, "CONFIDENCE_THRESHOLD", 0.75)
 
-    # Reset lazily-initialised singletons.
+
+    from api import dependencies as deps
     from database import session as db_session
     from privacy.redactor_adapter import get_redactor as _gr
-    from api import dependencies as deps
 
     db_session._engine = None
     db_session._SessionLocal = None
@@ -56,8 +52,6 @@ def cleaner(redactor):
 
 @pytest.fixture
 def db_session(tmp_path):
-    from sqlalchemy.orm import Session
-
     from database import session as db_session
     from database.models import Base
 
@@ -74,7 +68,6 @@ def db_session(tmp_path):
 
 @pytest.fixture
 def stub_artifact(tmp_path):
-    """Create a tiny trained-looking BiLSTM artifact for API/model tests."""
     from models.base import ModelConfig
     from models.bilstm_attention import BiLSTMAttentionClassifier
 
